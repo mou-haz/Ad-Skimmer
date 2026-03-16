@@ -1,4 +1,3 @@
-let adActive = false;
 
 function setLowestYouTubeQuality() {
     try {
@@ -59,6 +58,10 @@ function isGenericAd(video) {
     return false;
 }
 
+function isAdSkimmed(video) {
+    return video._adActive && video.playbackRate == 16;
+}
+
 function skipAd() {
 
     const skipButtons = [
@@ -70,6 +73,9 @@ function skipAd() {
     for (const selector of skipButtons) {
         const button = document.querySelector(selector);
         if (button && button.offsetParent !== null) {
+            const evObj = document.createEvent("Events");
+            evObj.initEvent("click", true, false);
+            button.dispatchEvent(evObj);
             button.click();
             console.log("Ad skipped.");
             return;
@@ -82,33 +88,49 @@ function checkVideos() {
     const videos = document.querySelectorAll("video");
 
     videos.forEach(video => {
-
+	
+    	video._adActive ||= false;
         const ytAd = isYouTubeAd();
         const genericAd = isGenericAd(video);
 
         if (ytAd || genericAd) {
 
-            if (!adActive) {
-                adActive = true;
-
+            if (!isAdSkimmed(video)) {
+                
+                video._adActive = true;
+                video.muted = true;
+                video._pbRate = video.playbackRate;
                 video.playbackRate = 16;
                 video.currentTime = video.duration - 0.1;
-                video.muted = true;
+
+                /*console.log(video.duration);
+                if (Number.isFinite(video.duration) && video.duration > 0) {
+                    const end = video.duration - 0.1;
+                    video.currentTime = end;
+                    console.log(end);
+                }*/
 
                 setLowestYouTubeQuality();
 
                 console.log("Ad detected");
+
+                console.log(video.playbackRate);
+                console.log(video.currentTime);
             }
 
             skipAd();
 
         } else {
 
-            if (adActive) {
-                adActive = false;
+            if (video._adActive) {
 
-                video.playbackRate = 1;
+                video._adActive = false;
+                video.playbackRate = video._pbRate;
                 video.muted = false;
+
+                if (video.paused) {
+                    video.play().catch(()=>{});
+                }
 
                 console.log("Ad ended");
             }
@@ -118,4 +140,13 @@ function checkVideos() {
     });
 }
 
-setInterval(checkVideos, 250);
+//setInterval(checkVideos, 150);
+const observer = new MutationObserver(checkVideos);
+
+observer.observe(document.documentElement, {
+    subtree: true,
+    attributes: true,
+    childList: true
+});
+
+checkVideos();
