@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Ad Skimmer",
+  "version": "1.0",
+  "description": "Speed, mute and skip ads automatically",
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*", "*://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
