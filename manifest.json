@@ -3,11 +3,20 @@
   "name": "Ad Skimmer",
   "version": "1.0",
   "description": "Speed, mute and skip ads automatically",
+  "permissions": [
+    "tabs",
+    "debugger"
+  ],
+  "host_permissions": [
+    "*://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
-      "matches": ["*://*.youtube.com/*", "*://*/*"],
-      "js": ["content.js"],
-      "run_at": "document_idle"
+      "matches": ["*://*/*"],
+      "js": ["content.js"]
     }
   ]
 }
