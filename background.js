@@ -1,3 +1,5 @@
+const attachedTabs = new Set();
+
 chrome.runtime.onMessage.addListener(async (msg, sender) => {
     if (msg.action !== 'skipAd') return;
     if (!sender.tab) return;
@@ -6,7 +8,12 @@ chrome.runtime.onMessage.addListener(async (msg, sender) => {
     const { x, y } = msg.coords;
 
     try {
-        await chrome.debugger.attach({ tabId }, '1.3');
+        if (!attachedTabs.has(tabId)) {
+            await chrome.debugger.attach({ tabId }, '1.3');
+            attachedTabs.add(tabId);
+            console.log('Debugger attached for tab', tabId);
+        }
+
         await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
             type: 'mousePressed',
             x, y,
@@ -24,5 +31,12 @@ chrome.runtime.onMessage.addListener(async (msg, sender) => {
         console.warn('Skip failed:', e);
     } finally {
         try { await chrome.debugger.detach({ tabId }); } catch {}
+    }
+});
+
+chrome.tabs.onRemoved.addListener(tabId => {
+    if (attachedTabs.has(tabId)) {
+        chrome.debugger.detach({ tabId }).catch(() => {});
+        attachedTabs.delete(tabId);
     }
 });

@@ -16,8 +16,6 @@ function isAdSkimmed(video) {
     return video._adActive && video.playbackRate == 16;
 }
 
-let lastSkipTime = 0;
-const clickSkipInterval = 250;// in ms.
 const skipButtons = [
         '.ytp-ad-skip-button-modern',
         '.ytp-skip-ad-button',
@@ -25,10 +23,6 @@ const skipButtons = [
     ];
 
 function skipAd() {
-    const now = Date.now();
-    if (now - lastSkipTime < clickSkipInterval) return;
-    lastSkipTime = now;
-
     for (const selector of skipButtons) {
         const button = document.querySelector(selector);
         if (button && button.offsetParent !== null) {
@@ -51,7 +45,14 @@ const adVideoSelectors = [
     '.html5-video-player.ad-showing video'
     ];
 
+let lastSkipTime = 0;
+const clickSkipInterval = 500;// in ms.
+
 function checkVideos() {
+
+    const now = Date.now();
+    if (now - lastSkipTime < clickSkipInterval) return;
+    lastSkipTime = now;
 
     const videos = document.querySelectorAll("video");
 
@@ -88,7 +89,8 @@ function checkVideos() {
             if (video._adActive) {
 
                 video._adActive = false;
-                video.playbackRate = video._pbRate;
+                video.playbackRate = video._pbRate || 1;
+                video._pbRate = undefined;
 
                 console.log("Ad ended");
             }
