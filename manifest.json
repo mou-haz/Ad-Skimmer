@@ -5,18 +5,37 @@
   "description": "Speed, mute and skip ads automatically",
   "permissions": [
     "tabs",
-    "debugger"
+    "debugger",
+    "storage"
   ],
   "host_permissions": [
-    "*://*/*"
+    "https://*/*",
+    "http://*/*"
   ],
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": ["*://*/*"],
+      "matches": [
+        "https://*/*",
+        "http://*/*"
+      ],
       "js": ["content.js"]
     }
-  ]
+  ],
+  "options_page": "options.html",
+  "action": {
+    "default_title": "Ad Skimmer",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
 }
