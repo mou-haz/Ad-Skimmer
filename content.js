@@ -1,3 +1,35 @@
+const isFirefox = typeof browser !== "undefined";
+const api = isFirefox ? browser : chrome;
+
+const handleSkipButton = isFirefox ? 
+    (button) => {
+        button.click();
+        console.log('Skip button clicked directly (Firefox)');
+    } : 
+    (button) => {
+        const rect = button.getBoundingClientRect();
+        const message = {
+            action: 'skipAd',
+            coords: {
+                x: rect.left + rect.width / 2,
+                y: rect.top + rect.height / 2
+            }
+        };
+
+        try {
+            if (api.runtime?.id) {
+                api.runtime.sendMessage(message);
+                console.warn('Messsage sent:', message);
+            }
+            else {
+                console.warn('Messsage NOT sent:', message);
+            }
+        } catch (e) {
+            console.warn('Messsage NOT sent with error:', e);
+        }
+        console.log('skipAd sent to background (Chrome)');
+    };
+    
 let settings = {
     clickSkipInterval: 500,
     adSkipTimeOffset: 0.1,
@@ -6,48 +38,16 @@ let settings = {
 };
 
 function loadSettings() {
-    chrome.storage.local.get(['clickSkipInterval', 'adSkipTimeOffset', 'enableExtension', 'siteRules'], (data) => {
+    api.storage.local.get(['clickSkipInterval', 'adSkipTimeOffset', 'enableExtension', 'siteRules'], (data) => {
         settings.clickSkipInterval = data.clickSkipInterval || 500;
         settings.adSkipTimeOffset = data.adSkipTimeOffset || 0.1;
         settings.enableExtension = data.enableExtension !== false;
         settings.siteRules = data.siteRules || [];
         
         console.log('Settings loaded from storage:', settings);
-        
         startMonitoring();
     });
 }
-
-// Load settings on initialization
-loadSettings();
-
-// Listen for settings updates from options page
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg.action === 'settingsUpdated') {
-        settings = msg.data;
-        console.log('Settings updated from options page:', settings);
-    }
-    
-    // Handle fallback click for Firefox
-    if (msg.action === 'clickAtCoords') {
-        const { x, y } = msg.coords;
-        try {
-            const element = document.elementFromPoint(x, y);
-            if (element && element.offsetParent !== null) {
-                const events = [
-                    new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }),
-                    new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }),
-                    new MouseEvent('click', { bubbles: true, cancelable: true, view: window })
-                ];
-                
-                events.forEach(e => element.dispatchEvent(e));
-                console.log('Element clicked via events');
-            }
-        } catch (e) {
-            console.warn('Click fallback failed:', e);
-        }
-    }
-});
 
 // Simple URL pattern matching (manifest v3 format)
 function matchPattern(url, pattern) {
@@ -62,9 +62,7 @@ function matchPattern(url, pattern) {
 }
 
 // Get selectors for current page
-function getSelectorsForCurrentPage() {
-    const currentUrl = window.location.href;
-    
+function getSelectorsForCurrentPage(currentUrl) {
     for (const rule of settings.siteRules) {
         if (!rule.enabled) continue;
         
@@ -87,20 +85,15 @@ function getSelectorsForCurrentPage() {
 }
 
 function skipAd() {
-    if (selectors.skipButtons.length === 0) return;
-    
+    if (selectors.skipButtons.length === 0) {
+        console.log('skipAd not sent as no skipButtons for:.', selectorUrl);
+        return;
+    }
+
     for (const selector of selectors.skipButtons) {
         const button = document.querySelector(selector);
         if (button && button.offsetParent !== null) {
-            const rect = button.getBoundingClientRect();
-            chrome.runtime.sendMessage({
-                action: 'skipAd',
-                coords: { 
-                    x: rect.left + rect.width / 2,
-                    y: rect.top + rect.height / 2
-                }
-            });
-            console.log('skipAd sent.');
+            handleSkipButton(button);
             break;
         }
     }
@@ -108,9 +101,7 @@ function skipAd() {
 
 function shouldSkim(video) {
     if (!video || !video.duration) return false;
-    
     if (!video._adActive || video.playbackRate != 16) return true;
-
     if (!isFinite(video.duration)) return false;
     
     return video.currentTime < video.duration - settings.adSkipTimeOffset;
@@ -119,11 +110,7 @@ function shouldSkim(video) {
 function handleVideo(video) {
 
     const isAd = selectors.adVideoSelectors.some(sel => {
-        try {
-            return video.matches(sel);
-        } catch {
-            return false;
-        }
+        try { return video.matches(sel); } catch { return false; }
     });
 
     if (isAd) {
@@ -160,6 +147,7 @@ function handleVideo(video) {
 }
 
 let selectors = getSelectorsForCurrentPage();
+let selectorUrl = '';
 let lastSkipTime = 0;
 
 function checkVideos() {
@@ -169,15 +157,16 @@ function checkVideos() {
     if (now - lastSkipTime < settings.clickSkipInterval) return;
     lastSkipTime = now;
 
-    selectors = getSelectorsForCurrentPage();
+    const currentUrl = window.location.href;
+    if (currentUrl !== selectorUrl){
+        selectorUrl = currentUrl;
+        selectors = getSelectorsForCurrentPage(currentUrl);
+    }
     
     if (selectors.adVideoSelectors.length === 0) return;
 
-    const videos = document.querySelectorAll("video");
-
-    videos.forEach(video => {
+    document.querySelectorAll("video").forEach(video => {
         video._adActive ||= false;
-        
         handleVideo(video);
     });
 }
@@ -191,3 +180,12 @@ function startMonitoring() {
     });
     checkVideos();
 }
+
+api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.action === 'settingsUpdated') {
+        settings = msg.data;
+        console.log('Settings updated from options page:', settings);
+    }
+});
+
+loadSettings();

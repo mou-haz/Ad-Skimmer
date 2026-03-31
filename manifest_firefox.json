@@ -5,16 +5,12 @@
   "description": "Speed, mute and skip ads automatically",
   "permissions": [
     "tabs",
-    "debugger",
     "storage"
   ],
   "host_permissions": [
     "https://*/*",
     "http://*/*"
   ],
-  "background": {
-    "service_worker": "background.js"
-  },
   "content_scripts": [
     {
       "matches": [
