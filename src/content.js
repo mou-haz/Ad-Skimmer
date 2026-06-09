@@ -1,41 +1,35 @@
-const isFirefox = typeof browser !== "undefined";
-const api = isFirefox ? browser : chrome;
+const api = chrome;
 
-const handleSkipButton = isFirefox ? 
-    (button) => {
-        button.click();
-        console.log('Skip button clicked directly (Firefox)');
-    } : 
-    (button) => {
-        const rect = button.getBoundingClientRect();
-        const message = {
-            action: 'skipAd',
-            coords: {
-                x: rect.left + rect.width / 2,
-                y: rect.top + rect.height / 2
-            }
-        };
-
-        try {
-            if (api.runtime?.id) {
-                api.runtime.sendMessage(message);
-                console.warn('Messsage sent:', message);
-            }
-            else {
-                console.warn('Messsage NOT sent:', message);
-            }
-        } catch (e) {
-            console.warn('Messsage NOT sent with error:', e);
-        }
-        console.log('skipAd sent to background (Chrome)');
-    };
-    
 let settings = {
     clickSkipInterval: 500,
     adSkipTimeOffset: 0.1,
     enableExtension: true,
     siteRules: []
 };
+
+function handleSkipButton(button){
+    const rect = button.getBoundingClientRect();
+    const message = {
+        action: 'skipAd',
+        coords: {
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2
+        }
+    };
+
+    try {
+        if (api.runtime?.id) {
+            api.runtime.sendMessage(message);
+            console.warn('Messsage sent:', message);
+        }
+        else {
+            console.warn('Messsage NOT sent:', message);
+        }
+    } catch (e) {
+        console.warn('Messsage NOT sent with error:', e);
+    }
+    console.log('skipAd sent to background (Chrome)');
+}
 
 function loadSettings() {
     api.storage.local.get(['clickSkipInterval', 'adSkipTimeOffset', 'enableExtension', 'siteRules'], (data) => {
