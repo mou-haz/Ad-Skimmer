@@ -7,7 +7,7 @@ let settings = {
     siteRules: []
 };
 
-function handleSkipButton(button){
+function handleSkipButton(button) {
     const rect = button.getBoundingClientRect();
     const message = {
         action: 'skipAd',
@@ -37,45 +37,49 @@ function loadSettings() {
         settings.adSkipTimeOffset = data.adSkipTimeOffset || 0.1;
         settings.enableExtension = data.enableExtension !== false;
         settings.siteRules = data.siteRules || [];
-        
+
         console.log('Settings loaded from storage:', settings);
-        startMonitoring();
     });
 }
 
 // Simple URL pattern matching (manifest v3 format)
 function matchPattern(url, pattern) {
     if (pattern === '*://*/*') return true;
-    
+
     const patternRegex = pattern
         .replace(/\./g, '\\.')
         .replace(/\*/g, '.*')
         .replace(/\?/g, '\\?');
-    
+
     return new RegExp(`^${patternRegex}$`).test(url);
 }
 
 // Get selectors for current page
 function getSelectorsForCurrentPage(currentUrl) {
-    for (const rule of settings.siteRules) {
-        if (!rule.enabled) continue;
-        
-        if (matchPattern(currentUrl, rule.urlPattern)) {
-            console.log(`Matched rule: ${rule.name}`);
-            return {
-                adVideoSelectors: rule.adVideoSelectors || [],
-                skipButtons: rule.skipButtons || [],
-                skipMode: rule.skipMode || 'full'
-            };
-        }
-    }
-    
-    console.log('No matching site rule found for URL:', currentUrl);
-    return {
+
+    const selector = {
         adVideoSelectors: [],
         skipButtons: [],
         skipMode: 'full'
     };
+
+    for (const rule of settings.siteRules) {
+        if (!rule.enabled) continue;
+
+        if (matchPattern(currentUrl, rule.urlPattern)) {
+            console.log(`Matched rule: ${rule.name}`);
+
+            selector.adVideoSelectors = rule.adVideoSelectors;
+            selector.skipButtons = rule.skipButtons;
+            selector.skipMode = rule.skipMode;
+
+
+            console.log('A matching rule found for URL:', currentUrl);
+            break;
+        }
+    }
+
+    return selector;
 }
 
 function skipAd() {
@@ -97,7 +101,7 @@ function shouldSkim(video) {
     if (!video || !video.duration) return false;
     if (!video._adActive || video.playbackRate != 16) return true;
     if (!isFinite(video.duration)) return false;
-    
+
     return video.currentTime < video.duration - settings.adSkipTimeOffset;
 }
 
@@ -126,16 +130,16 @@ function handleVideo(video) {
         }
     } else {
         video.muted = false;
-        
+
         if (!video._adActive) return;
-        
+
         video._adActive = false;
-        
+
         if (selectors.skipMode === 'full') {
             video.playbackRate = video._pbRate || 1;
         }
-        
-        video._pbRate = undefined;
+
+        video._pbRate = null;
         console.log("Ad ended");
     }
 }
@@ -145,18 +149,17 @@ let selectorUrl = '';
 let lastSkipTime = 0;
 
 function checkVideos() {
-    if (!settings.enableExtension) return;
-    
+
     const now = Date.now();
     if (now - lastSkipTime < settings.clickSkipInterval) return;
     lastSkipTime = now;
 
     const currentUrl = window.location.href;
-    if (currentUrl !== selectorUrl){
+    if (currentUrl !== selectorUrl) {
         selectorUrl = currentUrl;
         selectors = getSelectorsForCurrentPage(currentUrl);
     }
-    
+
     if (selectors.adVideoSelectors.length === 0) return;
 
     document.querySelectorAll("video").forEach(video => {
@@ -165,21 +168,38 @@ function checkVideos() {
     });
 }
 
-function startMonitoring() {
-    const observer = new MutationObserver(checkVideos);
-    observer.observe(document.documentElement, {
-        subtree: true,
-        attributes: true,
-        childList: true
-    });
-    checkVideos();
+let observer = null;
+
+function checkMonitoring() {
+    if (!settings.enableExtension) {
+        if (observer instanceof MutationObserver) {
+            observer.disconnect();
+            observer = null;
+        }
+    }
+    else {
+        observer = new MutationObserver(checkVideos);
+        observer.observe(document.documentElement, {
+            subtree: true,
+            attributes: true,
+            childList: true
+        });
+        checkVideos();
+    }
 }
 
-api.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg.action === 'settingsUpdated') {
-        settings = msg.data;
-        console.log('Settings updated from options page:', settings);
+api.runtime.onMessage.addListener((msg, sender) => {
+    console.log('api.runtime.onMessage Listener received:', msg);
+    if (msg.action !== 'settingsUpdated') {
+        return;
     }
+
+    settings = msg.data;
+    if (settings.enableExtension == (observer === null)) {
+        checkMonitoring();
+    }
+    console.log('Settings updated from options page:', settings);
 });
 
 loadSettings();
+checkMonitoring();

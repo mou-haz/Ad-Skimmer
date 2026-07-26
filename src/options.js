@@ -1,10 +1,11 @@
+const api = chrome;
 // Default site rules
 const DEFAULT_RULES = [
     {
         name: "YouTube",
         enabled: true,
         urlPattern: "*://*.youtube.com/*",
-        adVideoSelectors: [".html5-video-player.ad-showing video"],
+        adVideoSelectors: [".html5-video-player.ad-showing video:not(ytd-video-masthead-ad-primary-video-renderer *)"],
         skipButtons: [".ytp-ad-skip-button-modern", ".ytp-skip-ad-button", "button[aria-label^='Skip ad']"],
         skipMode: "full"
     },
@@ -44,7 +45,7 @@ function setupEventListeners() {
             const dropdown = toggle.closest('.dropdown');
             // Close other dropdowns
             document.querySelectorAll('.dropdown.active').forEach(d => {
-                if(d !== dropdown) d.classList.remove('active');
+                if (d !== dropdown) d.classList.remove('active');
             });
             // Toggle this dropdown
             dropdown.classList.toggle('active');
@@ -55,7 +56,7 @@ function setupEventListeners() {
     document.querySelectorAll('.dropdown-item').forEach(item => {
         item.addEventListener('click', () => {
             const dropdown = item.closest('.dropdown');
-            if(dropdown) dropdown.classList.remove('active');
+            if (dropdown) dropdown.classList.remove('active');
         });
     });
 }
@@ -63,13 +64,13 @@ function setupEventListeners() {
 function escapeHtml(text) {
     if (!text) return '';
     return text.replace(/[&<>"']/g, c => ({
-        '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;'
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
     })[c]);
 }
 
 async function loadOptions() {
-    const {clickSkipInterval, adSkipTimeOffset, enableExtension, siteRules} = await getFromStorage([
-        'clickSkipInterval','adSkipTimeOffset','enableExtension','siteRules'
+    const { clickSkipInterval, adSkipTimeOffset, enableExtension, siteRules } = await getFromStorage([
+        'clickSkipInterval', 'adSkipTimeOffset', 'enableExtension', 'siteRules'
     ]);
 
     document.getElementById('clickSkipInterval').value = clickSkipInterval ?? 500;
@@ -80,8 +81,12 @@ async function loadOptions() {
     updateOffsetDisplay();
 
     const rules = siteRules?.length ? siteRules : DEFAULT_RULES;
-    if (!siteRules || !siteRules.length) await saveToStorage({siteRules: DEFAULT_RULES});
-    renderSiteRules(rules);
+    if (!siteRules || !siteRules.length) {
+        await resetToDefaults(true);
+    }
+    else {
+        renderSiteRules(rules);
+    }
 }
 
 function getFromStorage(keys) {
@@ -89,7 +94,10 @@ function getFromStorage(keys) {
 }
 
 function saveToStorage(data) {
-    return new Promise(resolve => chrome.storage.local.set(data, resolve));
+    return new Promise(resolve => {
+        chrome.storage.local.set(data, resolve);
+        api.runtime.sendMessage({ action: "settingsUpdated", data: data });
+    });
 }
 
 function updateIntervalDisplay() {
@@ -118,10 +126,10 @@ function renderSiteRules(rules) {
         return;
     }
 
-    rules.forEach((rule,index) => container.appendChild(buildRuleElement(rule,index)));
+    rules.forEach((rule, index) => container.appendChild(buildRuleElement(rule, index)));
 }
 
-function buildRuleElement(rule,index) {
+function buildRuleElement(rule, index) {
     const div = document.createElement('div');
     div.className = 'site-rule';
 
@@ -142,7 +150,7 @@ function buildRuleElement(rule,index) {
     const toggle = document.createElement('div');
     toggle.className = 'toggle-switch' + (rule.enabled ? ' active' : '');
     toggle.dataset.index = index;
-    toggle.addEventListener('click', ()=> {
+    toggle.addEventListener('click', () => {
         toggle.classList.toggle('active');
         saveOptions();
         statusText.textContent = toggle.classList.contains('active') ? 'Enabled' : 'Disabled';
@@ -151,38 +159,38 @@ function buildRuleElement(rule,index) {
     const removeBtn = document.createElement('button');
     removeBtn.className = 'remove-rule-btn';
     removeBtn.textContent = 'Remove';
-    removeBtn.addEventListener('click', ()=> {
-        if(confirm(`Remove "${rule.name}"?`)){
+    removeBtn.addEventListener('click', () => {
+        if (confirm(`Remove "${rule.name}"?`)) {
             const allRules = getRulesFromUI();
-            allRules.splice(index,1);
+            allRules.splice(index, 1);
             renderSiteRules(allRules);
             saveOptions();
         }
     });
 
-    toggleContainer.append(statusText,toggle,removeBtn);
-    header.append(title,toggleContainer);
+    toggleContainer.append(statusText, toggle, removeBtn);
+    header.append(title, toggleContainer);
 
     // Fields
     const fields = document.createElement('div');
     fields.className = 'site-rule-fields';
 
-    function addField(labelText, type, value, className){
+    function addField(labelText, type, value, className) {
         const field = document.createElement('div');
         field.className = 'site-rule-field';
         const label = document.createElement('label');
         label.textContent = labelText;
         let input;
-        if(type==='textarea'){
+        if (type === 'textarea') {
             input = document.createElement('textarea');
             input.value = value;
-        } else if(type==='select'){
+        } else if (type === 'select') {
             input = document.createElement('select');
-            ['full','click-only'].forEach(opt=>{
+            ['full', 'click-only'].forEach(opt => {
                 const o = document.createElement('option');
                 o.value = opt;
-                o.textContent = opt==='full'?'Full (Speed up + Click button)':'Click Only (Just click skip button)';
-                if(opt===value) o.selected = true;
+                o.textContent = opt === 'full' ? 'Full (Speed up + Click button)' : 'Click Only (Just click skip button)';
+                if (opt === value) o.selected = true;
                 input.appendChild(o);
             });
         } else {
@@ -193,15 +201,15 @@ function buildRuleElement(rule,index) {
         input.className = className;
         input.dataset.index = index;
         input.addEventListener('change', saveOptions);
-        field.append(label,input);
+        field.append(label, input);
         fields.appendChild(field);
     }
 
-    addField('Rule Name','text',rule.name,'rule-name');
-    addField('URL Pattern','text',rule.urlPattern,'rule-url-pattern');
-    addField('Skip Mode','select',rule.skipMode,'rule-skip-mode');
-    addField('Ad Video Selectors','textarea',rule.adVideoSelectors.join('\n'),'rule-ad-selectors');
-    addField('Skip Button Selectors','textarea',rule.skipButtons.join('\n'),'rule-skip-buttons');
+    addField('Rule Name', 'text', rule.name, 'rule-name');
+    addField('URL Pattern', 'text', rule.urlPattern, 'rule-url-pattern');
+    addField('Skip Mode', 'select', rule.skipMode, 'rule-skip-mode');
+    addField('Ad Video Selectors', 'textarea', rule.adVideoSelectors.join('\n'), 'rule-ad-selectors');
+    addField('Skip Button Selectors', 'textarea', rule.skipButtons.join('\n'), 'rule-skip-buttons');
 
     // Actions
     const actions = document.createElement('div');
@@ -209,26 +217,26 @@ function buildRuleElement(rule,index) {
     const exportBtn = document.createElement('button');
     exportBtn.textContent = 'Export';
     exportBtn.className = 'btn btn-small btn-secondary';
-    exportBtn.addEventListener('click',()=>exportSingleRule(index));
+    exportBtn.addEventListener('click', () => exportSingleRule(index));
 
     const copyBtn = document.createElement('button');
     copyBtn.textContent = 'Copy';
     copyBtn.className = 'btn btn-small btn-secondary';
-    copyBtn.addEventListener('click',()=>copySingleRuleToClipboard(index));
+    copyBtn.addEventListener('click', () => copySingleRuleToClipboard(index));
 
-    actions.append(exportBtn,copyBtn);
+    actions.append(exportBtn, copyBtn);
     fields.appendChild(actions);
 
-    div.append(header,fields);
+    div.append(header, fields);
     return div;
 }
 
 function getRulesFromUI() {
-    const rules=[];
-    document.querySelectorAll('.site-rule').forEach((el)=>{
+    const rules = [];
+    document.querySelectorAll('.site-rule').forEach((el) => {
         const toggle = el.querySelector('.toggle-switch');
-        const adSelectors = el.querySelector('.rule-ad-selectors').value.split('\n').map(s=>s.trim()).filter(Boolean);
-        const skipSelectors = el.querySelector('.rule-skip-buttons').value.split('\n').map(s=>s.trim()).filter(Boolean);
+        const adSelectors = el.querySelector('.rule-ad-selectors').value.split('\n').map(s => s.trim()).filter(Boolean);
+        const skipSelectors = el.querySelector('.rule-skip-buttons').value.split('\n').map(s => s.trim()).filter(Boolean);
         rules.push({
             name: el.querySelector('.rule-name').value,
             enabled: toggle.classList.contains('active'),
@@ -245,32 +253,40 @@ function getRulesFromUI() {
 // Save / Reset / Add
 // ------------------------
 async function saveOptions() {
-    const clickSkipInterval = parseInt(document.getElementById('clickSkipInterval').value)||500;
-    const adSkipTimeOffset = parseFloat(document.getElementById('adSkipTimeOffset').value)||0.1;
+    const clickSkipInterval = parseInt(document.getElementById('clickSkipInterval').value) || 500;
+    const adSkipTimeOffset = parseFloat(document.getElementById('adSkipTimeOffset').value) || 0.1;
     const enableExtension = document.getElementById('enableExtension').checked;
     const siteRules = getRulesFromUI();
 
-    await saveToStorage({clickSkipInterval,adSkipTimeOffset,enableExtension,siteRules});
-    showStatus('Settings saved!','success');
+    await saveToStorage({ clickSkipInterval, adSkipTimeOffset, enableExtension, siteRules });
+    showStatus('Settings saved!', 'success');
 }
 
 async function resetOptions() {
-    if(confirm('Reset all settings to defaults?')){
-        await saveToStorage({clickSkipInterval:500,adSkipTimeOffset:0.1,enableExtension:true,siteRules:DEFAULT_RULES});
+    if (confirm('Reset all settings to defaults?')) {
+        await saveToStorage({ clickSkipInterval: 500, adSkipTimeOffset: 0.1, enableExtension: true, siteRules: DEFAULT_RULES });
         await loadOptions();
-        showStatus('Reset to defaults!','success');
+        showStatus('Reset to defaults!', 'success');
+    }
+}
+
+function resetToDefaults(confirmed = false) {
+    if (confirmed || confirm('Reset site rules to defaults?')) {
+        saveToStorage({ siteRules: DEFAULT_RULES });
+        renderSiteRules(DEFAULT_RULES);
+        showStatus('Site rules reset to defaults!', 'success');
     }
 }
 
 function addNewRule() {
     const rules = getRulesFromUI();
     rules.push({
-        name:`Custom Rule ${rules.length+1}`,
-        enabled:true,
-        urlPattern:"*://*.example.com/*",
-        adVideoSelectors:["video[data-ad='true']"],
-        skipButtons:["button.skip-ad"],
-        skipMode:"full"
+        name: `Custom Rule ${rules.length + 1}`,
+        enabled: true,
+        urlPattern: "*://*.example.com/*",
+        adVideoSelectors: ["video[data-ad='true']"],
+        skipButtons: ["button.skip-ad"],
+        skipMode: "full"
     });
     renderSiteRules(rules);
 }
@@ -278,90 +294,84 @@ function addNewRule() {
 // ------------------------
 // Status display
 // ------------------------
-function showStatus(msg,type){
+function showStatus(msg, type) {
     const el = document.getElementById('status');
     el.textContent = msg;
     el.className = `status-message ${type}`;
-    setTimeout(()=>{el.textContent='';el.className='status-message';},3000);
+    setTimeout(() => { el.textContent = ''; el.className = 'status-message'; }, 3000);
 }
 
 // ------------------------
 // Export / Import
 // ------------------------
-function exportRules(){
-    const blob = new Blob([JSON.stringify(getRulesFromUI(),null,2)],{type:'application/json'});
+function exportRules() {
+    const blob = new Blob([JSON.stringify(getRulesFromUI(), null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = `ad-skimmer-rules-${new Date().toISOString().split('T')[0]}.json`;
     link.click();
     URL.revokeObjectURL(url);
-    showStatus('Rules exported!','success');
+    showStatus('Rules exported!', 'success');
 }
 
-function exportSingleRule(index){
+function exportSingleRule(index) {
     const rule = getRulesFromUI()[index];
-    const blob = new Blob([JSON.stringify([rule],null,2)],{type:'application/json'});
+    const blob = new Blob([JSON.stringify([rule], null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${rule.name.replace(/\s+/g,'-')}.json`;
+    link.download = `${rule.name.replace(/\s+/g, '-')}.json`;
     link.click();
     URL.revokeObjectURL(url);
-    showStatus(`"${rule.name}" exported!`,'success');
+    showStatus(`"${rule.name}" exported!`, 'success');
 }
 
 async function exportToClipboard() {
-    try { await navigator.clipboard.writeText(JSON.stringify(getRulesFromUI(),null,2));
-        showStatus('Rules copied to clipboard!','success');
-    } catch(e){ showStatus('Error copying to clipboard','error'); }
+    try {
+        await navigator.clipboard.writeText(JSON.stringify(getRulesFromUI(), null, 2));
+        showStatus('Rules copied to clipboard!', 'success');
+    } catch (e) { showStatus('Error copying to clipboard', 'error'); }
 }
 
-async function copySingleRuleToClipboard(index){
-    try { await navigator.clipboard.writeText(JSON.stringify([getRulesFromUI()[index]],null,2));
-        showStatus('Rule copied!','success');
-    } catch(e){ showStatus('Error copying to clipboard','error'); }
+async function copySingleRuleToClipboard(index) {
+    try {
+        await navigator.clipboard.writeText(JSON.stringify([getRulesFromUI()[index]], null, 2));
+        showStatus('Rule copied!', 'success');
+    } catch (e) { showStatus('Error copying to clipboard', 'error'); }
 }
 
-function importRules(e){
-    const file = e.target.files[0]; if(!file) return;
+function importRules(e) {
+    const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
     reader.onload = evt => {
-        try{
+        try {
             const data = JSON.parse(evt.target.result);
-            const rules = Array.isArray(data)?data:[data];
+            const rules = Array.isArray(data) ? data : [data];
             const valid = rules.filter(validateRule);
-            if(!valid.length) throw new Error("No valid rules");
+            if (!valid.length) throw new Error("No valid rules");
             const merged = [...getRulesFromUI(), ...valid];
             renderSiteRules(merged); saveOptions();
-            showStatus(`Imported ${valid.length} rule(s)!`,'success');
-        } catch(err){ showStatus(err.message,'error'); }
+            showStatus(`Imported ${valid.length} rule(s)!`, 'success');
+        } catch (err) { showStatus(err.message, 'error'); }
     };
     reader.readAsText(file);
-    e.target.value='';
+    e.target.value = '';
 }
 
-async function importFromClipboard(){
-    try{
+async function importFromClipboard() {
+    try {
         const text = await navigator.clipboard.readText();
         const data = JSON.parse(text);
-        const rules = Array.isArray(data)?data:[data];
+        const rules = Array.isArray(data) ? data : [data];
         const valid = rules.filter(validateRule);
-        if(!valid.length) throw new Error("No valid rules in clipboard");
+        if (!valid.length) throw new Error("No valid rules in clipboard");
         const merged = [...getRulesFromUI(), ...valid];
         renderSiteRules(merged); saveOptions();
-        showStatus(`Imported ${valid.length} rule(s) from clipboard!`,'success');
-    } catch(err){ showStatus(err.message,'error'); }
+        showStatus(`Imported ${valid.length} rule(s) from clipboard!`, 'success');
+    } catch (err) { showStatus(err.message, 'error'); }
 }
 
-function validateRule(rule){
-    return rule.name && rule.urlPattern && Array.isArray(rule.adVideoSelectors) && Array.isArray(rule.skipButtons) && ['full','click-only'].includes(rule.skipMode);
-}
-
-function resetToDefaults(){
-    if(confirm('Reset site rules to defaults?')){
-        renderSiteRules(DEFAULT_RULES);
-        saveToStorage({siteRules:DEFAULT_RULES});
-        showStatus('Site rules reset to defaults!','success');
-    }
+function validateRule(rule) {
+    return rule.name && rule.urlPattern && Array.isArray(rule.adVideoSelectors) && Array.isArray(rule.skipButtons) && ['full', 'click-only'].includes(rule.skipMode);
 }

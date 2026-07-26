@@ -1,11 +1,14 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="UTF-8">
     <meta name="color-scheme" content="light dark">
     <title>Ad Skimmer - Options</title>
     <link rel="stylesheet" href="options.css">
+    <script src="options.js"></script>
 </head>
+
 <body>
     <div class="container">
         <h1>Ad Skimmer Settings</h1>
@@ -16,7 +19,8 @@
             <div class="setting-item">
                 <label for="clickSkipInterval">
                     Skip Button Click Interval (ms):
-                    <span class="helper-text">Minimum time between skip attempts. Lower = faster but may cause issues.</span>
+                    <span class="helper-text">Minimum time between skip attempts. Lower = faster but may cause
+                        issues.</span>
                 </label>
                 <input type="number" id="clickSkipInterval" min="100" max="2000" step="50" value="500">
                 <span class="value-display" id="clickSkipIntervalDisplay">500ms</span>
@@ -25,7 +29,8 @@
             <div class="setting-item">
                 <label for="adSkipTimeOffset">
                     Ad Skip Time Offset (seconds):
-                    <span class="helper-text">How close to the end of the ad to skip (minimum 0.1s). Lower values skip earlier.</span>
+                    <span class="helper-text">How close to the end of the ad to skip (minimum 0.1s). Lower values skip
+                        earlier.</span>
                 </label>
                 <input type="number" id="adSkipTimeOffset" min="0.1" max="5" step="0.1" value="0.1">
                 <span class="value-display" id="adSkipTimeOffsetDisplay">0.1s</span>
@@ -43,10 +48,10 @@
         <section id="sites-section" class="section">
             <h2>Site Rules</h2>
             <p class="section-info">Configure which sites the extension works on and how to detect ads.</p>
-            
+
             <div class="site-rules-controls">
                 <button id="addSiteBtn" class="btn btn-primary">+ Add New Site Rule</button>
-                
+
                 <!-- Export Dropdown -->
                 <div class="dropdown">
                     <button class="btn btn-secondary dropdown-toggle">📥 Export</button>
@@ -66,7 +71,7 @@
                 </div>
 
                 <button id="resetDefaultsBtn" class="btn btn-secondary">Reset to Defaults</button>
-                
+
                 <input type="file" id="importFile" accept=".json" style="display: none;">
             </div>
 
@@ -83,6 +88,6 @@
         </section>
     </div>
 
-    <script src="options.js"></script>
 </body>
+
 </html>
