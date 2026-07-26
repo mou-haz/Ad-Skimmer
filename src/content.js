@@ -44,7 +44,7 @@ function loadSettings() {
 
 // Simple URL pattern matching (manifest v3 format)
 function matchPattern(url, pattern) {
-    if (pattern === '*://*/*') return true;
+    if (pattern === '*://*/*' || pattern === '*') return true;
 
     const patternRegex = pattern
         .replace(/\./g, '\\.')
@@ -58,33 +58,37 @@ function matchPattern(url, pattern) {
 function getSelectorsForCurrentPage(currentUrl) {
 
     const selector = {
-        adVideoSelectors: [],
-        skipButtons: [],
-        skipMode: 'full'
+        adVideoSelectors: new Set(),
+        skipButtons: new Set(),
+        skipMode: null
     };
 
     for (const rule of settings.siteRules) {
         if (!rule.enabled) continue;
+        if (!matchPattern(currentUrl, rule.urlPattern)) continue;
 
-        if (matchPattern(currentUrl, rule.urlPattern)) {
-            console.log(`Matched rule: ${rule.name}`);
+        console.log(`✅ Matched rule: ${rule.name || rule.urlPattern}`);
 
-            selector.adVideoSelectors = rule.adVideoSelectors;
-            selector.skipButtons = rule.skipButtons;
+        (rule.adVideoSelectors || []).forEach(s => selector.adVideoSelectors.add(s));
+        (rule.skipButtons || []).forEach(s => selector.skipButtons.add(s));
+
+        if (selector.skipMode === null || rule.skipMode === 'full') {
             selector.skipMode = rule.skipMode;
-
-
-            console.log('A matching rule found for URL:', currentUrl);
-            break;
         }
+
+        break;
     }
 
-    return selector;
+    return {
+        adVideoSelectors: Array.from(selector.adVideoSelectors),
+        skipButtons: Array.from(selector.skipButtons),
+        skipMode: selector.skipMode
+    };
 }
 
-function skipAd() {
+function trySkipButtons() {
     if (selectors.skipButtons.length === 0) {
-        console.log('skipAd not sent as no skipButtons for:.', selectorUrl);
+        console.log('trySkipButtons not sent as no skipButtons for:.', selectorUrl);
         return;
     }
 
@@ -122,11 +126,11 @@ function handleVideo(video) {
                 video.currentTime = video.duration - settings.adSkipTimeOffset;
                 console.log(`Ad detected (mode: ${selectors.skipMode})`);
             }
-            skipAd();
+            trySkipButtons();
         }
         else if (selectors.skipMode === 'click-only') {
             console.log(`Ad detected (mode: ${selectors.skipMode})`);
-            skipAd();
+            trySkipButtons();
         }
     } else {
         video.muted = false;
@@ -148,7 +152,7 @@ let selectors = getSelectorsForCurrentPage();
 let selectorUrl = '';
 let lastSkipTime = 0;
 
-function checkVideos() {
+function checkPage() {
 
     const now = Date.now();
     if (now - lastSkipTime < settings.clickSkipInterval) return;
@@ -160,12 +164,24 @@ function checkVideos() {
         selectors = getSelectorsForCurrentPage(currentUrl);
     }
 
-    if (selectors.adVideoSelectors.length === 0) return;
+    if (!checkVideos()) {
+        trySkipButtons();
+    }
+}
+
+function checkVideos() {
+
+    if (selectors.adVideoSelectors.length === 0) return false;
+
+    let found = false;
 
     document.querySelectorAll("video").forEach(video => {
         video._adActive ||= false;
         handleVideo(video);
+        found = true;
     });
+
+    return found;
 }
 
 let observer = null;
@@ -178,13 +194,14 @@ function checkMonitoring() {
         }
     }
     else {
-        observer = new MutationObserver(checkVideos);
+        selectorUrl = '';
+        observer = new MutationObserver(checkPage);
         observer.observe(document.documentElement, {
             subtree: true,
             attributes: true,
             childList: true
         });
-        checkVideos();
+        checkPage();
     }
 }
 
@@ -194,7 +211,7 @@ api.runtime.onMessage.addListener((msg, sender) => {
         return;
     }
 
-    settings = msg.data;
+    Object.assign(settings, msg.data);
     if (settings.enableExtension == (observer === null)) {
         checkMonitoring();
     }
