@@ -31,14 +31,21 @@ function handleSkipButton(button) {
     console.log('skipAd sent to background (Chrome)');
 }
 
-function loadSettings() {
-    api.storage.local.get(['clickSkipInterval', 'adSkipTimeOffset', 'enableExtension', 'siteRules'], (data) => {
-        settings.clickSkipInterval = data.clickSkipInterval || 500;
-        settings.adSkipTimeOffset = data.adSkipTimeOffset || 0.1;
-        settings.enableExtension = data.enableExtension !== false;
-        settings.siteRules = data.siteRules || [];
+async function loadSettings() {
+    return new Promise((resolve) => {
+        api.storage.local.get(
+            ['clickSkipInterval', 'adSkipTimeOffset', 'enableExtension', 'siteRules'],
+            (data) => {
+                settings.clickSkipInterval = data.clickSkipInterval || 500;
+                settings.adSkipTimeOffset = data.adSkipTimeOffset || 0.1;
+                settings.enableExtension = data.enableExtension !== false;
+                settings.siteRules = data.siteRules || [];
 
-        console.log('Settings loaded from storage:', settings);
+                console.log('Settings loaded from storage:', settings);
+
+                resolve();
+            }
+        );
     });
 }
 
@@ -70,13 +77,11 @@ function getSelectorsForCurrentPage(currentUrl) {
         console.log(`✅ Matched rule: ${rule.name || rule.urlPattern}`);
 
         (rule.adVideoSelectors || []).forEach(s => selector.adVideoSelectors.add(s));
-        (rule.skipButtons || []).forEach(s => selector.skipButtons.add(s));
+        (rule.skipButtons || []).forEach(s => selector.skipButtons.add({ rule: s, videoDependent: rule.skipMode === 'full' }));
 
         if (selector.skipMode === null || rule.skipMode === 'full') {
             selector.skipMode = rule.skipMode;
         }
-
-        break;
     }
 
     return {
@@ -86,15 +91,17 @@ function getSelectorsForCurrentPage(currentUrl) {
     };
 }
 
-function trySkipButtons() {
-    if (selectors.skipButtons.length === 0) {
+function trySkipButtons(skipButtons) {
+    if (skipButtons.length === 0) {
         console.log('trySkipButtons not sent as no skipButtons for:.', selectorUrl);
         return;
     }
 
-    for (const selector of selectors.skipButtons) {
-        const button = document.querySelector(selector);
+    for (const selector of skipButtons) {
+        const button = document.querySelector(selector.rule);
         if (button && button.offsetParent !== null) {
+            console.log('button found for selector:', selector.rule);
+            console.log('URL:', selectorUrl);
             handleSkipButton(button);
             break;
         }
@@ -126,12 +133,13 @@ function handleVideo(video) {
                 video.currentTime = video.duration - settings.adSkipTimeOffset;
                 console.log(`Ad detected (mode: ${selectors.skipMode})`);
             }
-            trySkipButtons();
         }
         else if (selectors.skipMode === 'click-only') {
             console.log(`Ad detected (mode: ${selectors.skipMode})`);
-            trySkipButtons();
         }
+
+        trySkipButtons(selectors.skipButtons);
+        return true;
     } else {
         video.muted = false;
 
@@ -146,9 +154,11 @@ function handleVideo(video) {
         video._pbRate = null;
         console.log("Ad ended");
     }
+
+    return false;
 }
 
-let selectors = getSelectorsForCurrentPage();
+let selectors = '';
 let selectorUrl = '';
 let lastSkipTime = 0;
 
@@ -165,7 +175,7 @@ function checkPage() {
     }
 
     if (!checkVideos()) {
-        trySkipButtons();
+        trySkipButtons(selectors.skipButtons.filter(rule => !rule.videoDependent));
     }
 }
 
@@ -177,8 +187,9 @@ function checkVideos() {
 
     document.querySelectorAll("video").forEach(video => {
         video._adActive ||= false;
-        handleVideo(video);
-        found = true;
+        if (!found) {
+            found = handleVideo(video) || found;
+        }
     });
 
     return found;
@@ -205,18 +216,26 @@ function checkMonitoring() {
     }
 }
 
-api.runtime.onMessage.addListener((msg, sender) => {
+api.runtime.onMessage.addListener(function (msg, sender) {
     console.log('api.runtime.onMessage Listener received:', msg);
     if (msg.action !== 'settingsUpdated') {
         return;
     }
 
-    Object.assign(settings, msg.data);
+    settings.enableExtension = msg.data.enableExtension;
+    settings.adSkipTimeOffset = msg.data.adSkipTimeOffset;
+    settings.clickSkipInterval = msg.data.clickSkipInterval;
+    settings.siteRules = msg.data.siteRules;
+
     if (settings.enableExtension == (observer === null)) {
         checkMonitoring();
     }
     console.log('Settings updated from options page:', settings);
 });
 
-loadSettings();
-checkMonitoring();
+async function init() {
+    await loadSettings();
+    checkMonitoring();
+}
+
+init();
