@@ -98,7 +98,7 @@ function trySkipButtons(skipButtons) {
     }
 
     for (const selector of skipButtons) {
-        const button = document.querySelector(selector.rule);
+        const button = query(selector.rule);
         if (button && button.offsetParent !== null) {
             console.log('button found for selector:', selector.rule);
             console.log('URL:', selectorUrl);
@@ -185,7 +185,7 @@ function checkVideos() {
 
     let found = false;
 
-    document.querySelectorAll("video").forEach(video => {
+    queryAll("video").forEach(video => {
         video._adActive ||= false;
         if (!found) {
             found = handleVideo(video) || found;
@@ -193,6 +193,36 @@ function checkVideos() {
     });
 
     return found;
+}
+
+function query(selector, root = document){
+    const found = root.querySelector(selector);
+    if (found) return found;
+
+    for (const el of root.querySelectorAll("*")) {
+        if (el.shadowRoot) {
+            const result = query(selector, el.shadowRoot);
+            if (result) return result;
+        }
+    }
+
+    return null;
+}
+
+function queryAll(selector){
+    return queryAllDeep(selector, document);
+}
+
+function queryAllDeep(selector, root) {
+    const results = [...root.querySelectorAll(selector)];
+
+    for (const el of root.querySelectorAll("*")) {
+        if (el.shadowRoot) {
+            results.push(...queryAllDeep(selector, el.shadowRoot));
+        }
+    }
+
+    return results;
 }
 
 let observer = null;
