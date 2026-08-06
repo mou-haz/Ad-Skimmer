@@ -162,7 +162,7 @@ let selectors = '';
 let selectorUrl = '';
 let lastSkipTime = 0;
 
-function checkPage(document) {
+function checkPage() {
 
     const now = Date.now();
     if (now - lastSkipTime < settings.clickSkipInterval) return;
@@ -174,12 +174,12 @@ function checkPage(document) {
         selectors = getSelectorsForCurrentPage(currentUrl);
     }
 
-    if (!checkVideos(document)) {
+    if (!checkVideos()) {
         trySkipButtons(selectors.skipButtons.filter(rule => !rule.videoDependent));
     }
 }
 
-function checkVideos(document) {
+function checkVideos() {
 
     if (selectors.adVideoSelectors.length === 0) return false;
 
@@ -206,24 +206,13 @@ function checkMonitoring() {
     }
     else {
         selectorUrl = '';
-        observer = new MutationObserver(mutations => {
-
-            for (const mutation of mutations) {
-                const root = mutation.target.getRootNode();
-
-                if (root){
-                    checkPage(root);
-                }
-            }
-        });
-
+        observer = new MutationObserver(checkPage);
         observer.observe(document.documentElement, {
             subtree: true,
             attributes: true,
             childList: true
         });
-        
-        checkPage(document);
+        checkPage();
     }
 }
 
