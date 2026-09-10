@@ -4,7 +4,7 @@ const DEFAULT_RULES = [
     {
         name: "YouTube",
         enabled: true,
-        urlPattern: "*://*.youtube.com/*",
+        urlPattern: "*",
         adVideoSelectors: [".html5-video-player.ad-showing video:not(ytd-video-masthead-ad-primary-video-renderer *)"],
         skipButtons: [".ytp-ad-skip-button-modern", ".ytp-skip-ad-button", "button[aria-label^='Skip ad']"],
         skipMode: "full"
@@ -16,6 +16,33 @@ const DEFAULT_RULES = [
         adVideoSelectors: [".bitmovinplayer-ima-container[style*='display: block'] video[title='Advertisement']"],
         skipButtons: [".bmp-skip-ad-button", "button[aria-label*='Skip']"],
         skipMode: "full"
+    },
+    {
+        name: "Shahid skip intro",
+        enabled: true,
+        urlPattern: "*://shahid.mbc.net/*",
+        adVideoSelectors: [],
+        skipButtons: ["button[data-testid=\"skipIntro-button\"]"],
+        skipMode: "click-only"
+    },
+    {
+        name: "Youtube Premium skip",
+        enabled: true,
+        urlPattern: "*://*.youtube.com/*",
+        adVideoSelectors: [],
+        skipButtons: [
+            "button.ytSpecButtonShapeNextTonal[aria-label=\"No thanks\"]",
+            "yt-button-renderer#dismiss-button"
+        ],
+        skipMode: "click-only"
+    },
+    {
+        name: "Reddit clear recents",
+        enabled: false,
+        urlPattern: "*://*.reddit.com/*",
+        adVideoSelectors: [],
+        skipButtons: ["faceplate-tracker[noun=\"clear_recent_module\"] button"],
+        skipMode: "click-only"
     }
 ];
 

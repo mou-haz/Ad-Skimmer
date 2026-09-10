@@ -168,7 +168,10 @@ function checkPage() {
     if (now - lastSkipTime < settings.clickSkipInterval) return;
     lastSkipTime = now;
 
+
     const currentUrl = window.location.href;
+    const focusedElement = document.activeElement;
+
     if (currentUrl !== selectorUrl) {
         selectorUrl = currentUrl;
         selectors = getSelectorsForCurrentPage(currentUrl);
@@ -176,6 +179,18 @@ function checkPage() {
 
     if (!checkVideos()) {
         trySkipButtons(selectors.skipButtons.filter(rule => !rule.videoDependent));
+    }
+
+    if (
+        focusedElement &&
+        focusedElement !== document.body &&
+        typeof focusedElement.focus === 'function'
+    ) {
+        try {
+            focusedElement.focus({ preventScroll: true });
+        } catch {
+            focusedElement.focus();
+        }
     }
 }
 
