@@ -186,6 +186,9 @@ function checkPage() {
         focusedElement !== document.body &&
         typeof focusedElement.focus === 'function'
     ) {
+        
+        focusedElement.tabIndex = -1;
+
         try {
             focusedElement.focus({ preventScroll: true });
         } catch {
